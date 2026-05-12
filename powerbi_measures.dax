@@ -1,0 +1,99 @@
+Average Settlement (mm) =
+AVERAGEX (
+    'PlateLoadReadings',
+    DIVIDE (
+        'PlateLoadReadings'[DialGauge1_mm]
+            + 'PlateLoadReadings'[DialGauge2_mm]
+            + 'PlateLoadReadings'[DialGauge3_mm],
+        3
+    )
+)
+
+Peak Load Applied (kN) =
+MAX ( 'PlateLoadReadings'[Load_kN] )
+
+Maximum Settlement (mm) =
+MAXX (
+    'PlateLoadReadings',
+    DIVIDE (
+        'PlateLoadReadings'[DialGauge1_mm]
+            + 'PlateLoadReadings'[DialGauge2_mm]
+            + 'PlateLoadReadings'[DialGauge3_mm],
+        3
+    )
+)
+
+Max Differential Gauge Reading (mm) =
+MAXX (
+    'PlateLoadReadings',
+    MAX (
+        MAX ( 'PlateLoadReadings'[DialGauge1_mm], 'PlateLoadReadings'[DialGauge2_mm] ),
+        'PlateLoadReadings'[DialGauge3_mm]
+    )
+        - MIN (
+            MIN ( 'PlateLoadReadings'[DialGauge1_mm], 'PlateLoadReadings'[DialGauge2_mm] ),
+            'PlateLoadReadings'[DialGauge3_mm]
+        )
+)
+
+Settlement Rate (mm/min) =
+VAR CurrentSeq = MAX ( 'PlateLoadReadings'[Sequence] )
+VAR CurrentSet = [Average Settlement (mm)]
+VAR PriorSet =
+    CALCULATE (
+        [Average Settlement (mm)],
+        FILTER (
+            ALLSELECTED ( 'PlateLoadReadings' ),
+            'PlateLoadReadings'[TestID] = MAX ( 'PlateLoadReadings'[TestID] )
+                && 'PlateLoadReadings'[Sequence] = CurrentSeq - 1
+        )
+    )
+RETURN
+    DIVIDE ( CurrentSet - PriorSet, 5 )
+
+Incremental Stiffness (kN/mm) =
+VAR CurrentSeq = MAX ( 'PlateLoadReadings'[Sequence] )
+VAR CurrentLoad = MAX ( 'PlateLoadReadings'[Load_kN] )
+VAR CurrentSet = [Average Settlement (mm)]
+VAR PriorLoad =
+    CALCULATE (
+        MAX ( 'PlateLoadReadings'[Load_kN] ),
+        FILTER (
+            ALLSELECTED ( 'PlateLoadReadings' ),
+            'PlateLoadReadings'[TestID] = MAX ( 'PlateLoadReadings'[TestID] )
+                && 'PlateLoadReadings'[Sequence] = CurrentSeq - 1
+        )
+    )
+VAR PriorSet =
+    CALCULATE (
+        [Average Settlement (mm)],
+        FILTER (
+            ALLSELECTED ( 'PlateLoadReadings' ),
+            'PlateLoadReadings'[TestID] = MAX ( 'PlateLoadReadings'[TestID] )
+                && 'PlateLoadReadings'[Sequence] = CurrentSeq - 1
+        )
+    )
+RETURN
+    DIVIDE ( CurrentLoad - PriorLoad, CurrentSet - PriorSet )
+
+Residual Settlement (mm) =
+VAR MinUnloadLoad =
+    CALCULATE (
+        MIN ( 'PlateLoadReadings'[Load_kN] ),
+        'PlateLoadReadings'[Stage] = "Unloading"
+    )
+RETURN
+    CALCULATE (
+        [Average Settlement (mm)],
+        'PlateLoadReadings'[Stage] = "Unloading",
+        'PlateLoadReadings'[Load_kN] = MinUnloadLoad
+    )
+
+Elastic Recovery % =
+VAR PeakSettlement = [Maximum Settlement (mm)]
+VAR Residual = [Residual Settlement (mm)]
+RETURN
+    DIVIDE ( PeakSettlement - Residual, PeakSettlement )
+
+Settlement Gradient =
+DIVIDE ( [Maximum Settlement (mm)], [Peak Load Applied (kN)] )
